@@ -562,7 +562,7 @@ class wm_int
                     size_type rank_b_i = m_tree_rank(b + i) - rank_0_b; // ones in [b..i) 
                     size_type rank_b_j = m_tree_rank(b + j + 1) - rank_0_b;
                     size_type ones_p   = rank_0_b - m_rank_level[depth];
-		    size_type i_l = i - rank_b_i; // zeroes in [b..i)
+		            size_type i_l = i - rank_b_i; // zeroes in [b..i)
                     size_type j_l = j - rank_b_j;
                     size_type i_r = i - i_l;
                     size_type j_r = j - 1 - j_l;
@@ -1656,6 +1656,8 @@ class wm_int
             return expand(std::move(v_right));
         }
 
+
+
         std::array<node_type, 2>
         my_expand(const node_type& v, const range_type& r, range_type& left_int, range_type& right_int, size_type& rank_b) const
         {
@@ -1684,7 +1686,49 @@ class wm_int
             v_right.sym    = (v.sym<<1)|1;
 
             return {std::move(v_left), std::move(v_right)};
-	} 
+	}
+
+    //Implemented by adriangbrandon.
+    //Given a node v and a set of ranges contained in v, it returns the two child nodes of v and computes the left and
+    //right child ranges for each range in the set. If a child range is empty, it is not included in the corresponding vector.
+    std::array<node_type, 2>
+        my_expand_ranges(const node_type& v, const std::vector<range_type>& ranges,
+                         std::vector<range_type>& left_ranges,  std::vector<range_type>& right_ranges) const
+        {
+            size_type sp_rank, right_size, left_size, right_sp, left_sp;
+            node_type v_left, v_right = v;
+            size_type rank_b = m_tree_rank(v.offset);
+            size_type ones   = m_tree_rank(v.offset+v.size)-rank_b; // ones in [b..size)
+            size_type ones_p = rank_b - m_rank_level[v.level];      // ones in [level_b..b)
+
+            for (const auto& r : ranges) {
+                sp_rank    = m_tree_rank(v.offset + r[0]);
+                right_size = m_tree_rank(v.offset + r[1] + 1) - sp_rank;
+                left_size  = (r[1]-r[0]+1)-right_size;
+                right_sp = sp_rank - rank_b;
+                left_sp  = r[0] - right_sp;
+
+                if (left_size > 0) {
+                    left_ranges.push_back({left_sp, left_sp + left_size - 1});
+                }
+                if (right_size > 0) {
+                    right_ranges.push_back({right_sp, right_sp + right_size - 1});
+                }
+
+            }
+
+            v_left.offset = (v.level+1)*m_size + (v.offset - v.level*m_size) - ones_p;
+            v_left.size   = v.size - ones;
+            v_left.level  = v.level + 1;
+            v_left.sym    = v.sym<<1;
+
+            v_right.offset = (v.level+1)*m_size + m_zero_cnt[v.level] + ones_p;
+            v_right.size   = ones;
+            v_right.level  = v.level + 1;
+            v_right.sym    = (v.sym<<1)|1;
+
+            return {std::move(v_left), std::move(v_right)};
+        }
         
 
         //! Returns the two child nodes of an inner node
