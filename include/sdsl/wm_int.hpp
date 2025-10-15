@@ -469,6 +469,114 @@ class wm_int
         };
 
 
+    //Implemented by Adrian Gomez-Brandon
+
+    bool overlaps(const range_type &range, const std::vector<range_type> &sigma_ranges) {
+
+        for (const auto &r : sigma_ranges) {
+            if (r[0] <= range[1] && r[1] >= range[0]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    uint64_t select_next_node(node_type &v, range_type range, range_type sigma_range,  const std::vector<range_type> &sigma_ranges) {
+
+        /*if (!overlaps(sigma_range, sigma_ranges)) {
+            return -1ULL;
+        }*/
+
+        if (is_leaf(v)) return v.offset + range[0];
+
+        uint64_t rank_b;
+        range_type left_range, right_range;
+        auto child = my_expand(v, range, left_range, right_range, rank_b);
+        uint64_t lp = -1ULL, rp = -1ULL;
+        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        if (!sdsl::empty(left_range) && overlaps({sigma_range[0], mid-1}, sigma_ranges)) {
+            lp = select_next_node(child[0], left_range, {sigma_range[0], mid-1}, sigma_ranges); //poistion in the bitvector (v.level+1)
+            if (lp != -1ULL) {
+                lp = lp - (v.level+1) * m_size + 1; //position in the left child
+                lp = m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp); //position in the bitvector (v.level)
+            }
+        }
+        if (!sdsl::empty(right_range) && overlaps({mid, sigma_range[1]}, sigma_ranges)) {
+            rp = select_next_node(child[1], right_range, {mid, sigma_range[1]}, sigma_ranges); //poistion in the bitvector (v.level+1)
+            if (rp != -1ULL) {
+                rp = rp - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //position in the right child
+                rp = m_tree_select1(m_rank_level[v.level]+rp); //position in the bitvector (v.level)
+            }
+        }
+
+        /*if (lp != -1ULL && rp != -1ULL) {
+            lp = lp - (v.level+1) * m_size + 1;
+            rp = rp - (v.level+1) * m_size - m_zero_cnt[v.level] +1;
+            res = std::min(m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp), m_tree_select1(m_rank_level[v.level]+rp));
+        } else if (lp != -1ULL) {
+           lp = lp - (v.level+1) * m_size + 1;
+            res = m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp);
+        } else if (rp != -1ULL) {
+            rp = rp - (v.level+1) * m_size - m_zero_cnt[v.level] +1;
+            res =m_tree_select1(m_rank_level[v.level]+rp);
+        }*/
+        return std::min(lp, rp);
+
+    }
+    /***
+     * The position of the range [p, \infty) whose symbol is in any range of sigma_ranges
+     */
+     size_type  select_next(uint64_t p, std::vector<sdsl::range_type> &sigma_ranges) {
+        node_type v = root();
+        range_type range = {p, size()-1};
+        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        if (!overlaps(sigma_range, sigma_ranges)) return 0;
+        return select_next_node(v, range, sigma_range, sigma_ranges)+1;
+    }
+
+    //Implemented by Adrian Gomez-Brandon
+    value_type range_next_value_node_min(node_type &v, const std::vector<range_type> &ranges, range_type sigma_range) {
+
+        if (is_leaf(v)) return v.sym;
+
+        std::vector<range_type> left_ranges, right_ranges;
+        auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
+        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        if (!left_ranges.empty()) {
+            return range_next_value_node_min(child[0], left_ranges, {sigma_range[0], mid-1});
+        }else {
+            return range_next_value_node_min(child[1], right_ranges, {mid, sigma_range[1]});
+        }
+    }
+
+    value_type range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, range_type sigma_range) {
+
+        if (is_leaf(v)) return v.sym;
+
+        std::vector<range_type> left_ranges, right_ranges;
+        auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
+        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        if (!left_ranges.empty() && val < mid) {
+            value_type aux =  range_next_value_node(child[0], val, left_ranges, {sigma_range[0], mid-1});
+            if (aux) return aux;
+            if (!right_ranges.empty()) range_next_value_node_min(child[1], right_ranges, {mid, sigma_range[1]});
+        }else if (!right_ranges.empty()){
+            return range_next_value_node(child[1], val, right_ranges, {mid, sigma_range[1]});
+        }
+        return 0;
+    }
+
+    /***
+     * The smallest value in [val, \infty) placed in any range of ranges
+     */
+    value_type range_next_value(const value_type &val, const std::vector<sdsl::range_type> &ranges) {
+        node_type v = root();
+        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        if (val > sigma_range[1]) return 0;
+        return range_next_value_node(v, val, ranges, sigma_range);
+    }
+
+
 	value_type range_minimum_query(size_type i, size_type j) const
 	{
 	    return _range_minimum_query(i, j, 0, 0, 0);	
@@ -482,26 +590,26 @@ class wm_int
 	        return res;
 	    else {
 	        size_type rank_0_b = m_tree_rank(b); // ones in [0..b)
-		size_type rank_b_i = m_tree_rank(b + i) - rank_0_b; // ones in [b..i)
-                size_type rank_b_j = m_tree_rank(b + j + 1) - rank_0_b;
-		size_type ones_p   = rank_0_b - m_rank_level[depth];
+	        size_type rank_b_i = m_tree_rank(b + i) - rank_0_b; // ones in [b..i)
+	        size_type rank_b_j = m_tree_rank(b + j + 1) - rank_0_b;
+		    size_type ones_p   = rank_0_b - m_rank_level[depth];
 
-                size_type i_l = i - rank_b_i; // zeroes in [b..i)
-                size_type j_l = j - rank_b_j;
-                size_type i_r = i - i_l;
-                size_type j_r = j - 1 - j_l;
-                size_type n_l = j_l - i_l + 1;
+            size_type i_l = i - rank_b_i; // zeroes in [b..i)
+            size_type j_l = j - rank_b_j;
+            size_type i_r = i - i_l;
+            size_type j_r = j - 1 - j_l;
+            size_type n_l = j_l - i_l + 1;
 
-                res <<= 1;
-                if (n_l == 0) { // no left child, recurse on the rigth child
-                    b = (depth+1)*m_size + m_zero_cnt[depth] + ones_p;
-                    res |= 1;
-                    return _range_minimum_query(i_r, j_r, depth+1, b, res);
-                }
-                else { // recurse on the left child
-                    b = (depth+1)*m_size + (b - depth*m_size - ones_p);
-                    return _range_minimum_query(i_l, j_l, depth+1, b, res);
-                }
+            res <<= 1;
+            if (n_l == 0) { // no left child, recurse on the rigth child
+                b = (depth+1)*m_size + m_zero_cnt[depth] + ones_p;
+                res |= 1;
+                return _range_minimum_query(i_r, j_r, depth+1, b, res);
+            }
+            else { // recurse on the left child
+                b = (depth+1)*m_size + (b - depth*m_size - ones_p);
+                return _range_minimum_query(i_l, j_l, depth+1, b, res);
+            }
 	    }
 	}
 
@@ -1688,7 +1796,7 @@ class wm_int
             return {std::move(v_left), std::move(v_right)};
 	}
 
-    //Implemented by adriangbrandon.
+    //Implemented by Adrian Gomez-Brandon.
     //Given a node v and a set of ranges contained in v, it returns the two child nodes of v and computes the left and
     //right child ranges for each range in the set. If a child range is empty, it is not included in the corresponding vector.
     std::array<node_type, 2>
