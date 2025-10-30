@@ -481,6 +481,22 @@ class wm_int
         return false;
     }
 
+    //Computes the state of the range in sigma_ranges
+    //- 0: not overlapping
+    //- 1: overlapping
+    //- 2: contained
+    uint check_range(const range_type &range, const std::vector<range_type> &sigma_ranges) {
+        for (const auto &r : sigma_ranges) {
+            if (r[0] <= range[0] && r[1] >= range[1]) {
+                return 2;
+            }
+            if (r[0] <= range[1] && r[1] >= range[0]) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
     uint64_t select_next_node(node_type &v, range_type range, range_type sigma_range,  const std::vector<range_type> &sigma_ranges) {
 
         /*if (!overlaps(sigma_range, sigma_ranges)) {
@@ -494,18 +510,34 @@ class wm_int
         auto child = my_expand(v, range, left_range, right_range, rank_b);
         uint64_t lp = -1ULL, rp = -1ULL;
         size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
-        if (!sdsl::empty(left_range) && overlaps({sigma_range[0], mid-1}, sigma_ranges)) {
-            lp = select_next_node(child[0], left_range, {sigma_range[0], mid-1}, sigma_ranges); //poistion in the bitvector (v.level+1)
-            if (lp != -1ULL) {
-                lp = lp - (v.level+1) * m_size + 1; //position in the left child
+        uint lstate, rstate;
+
+        if (!sdsl::empty(left_range)) {
+            lstate = check_range({sigma_range[0], mid-1}, sigma_ranges);
+            if (lstate == 2) {
+                lp = child[0].offset + left_range[0]; //position in the bitvector (v.level+1)
+                lp = lp - (v.level+1) * m_size + 1;  //corresponds with the lp-th 0-bit of v.level
                 lp = m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp); //position in the bitvector (v.level)
+            }else if (lstate == 1) {
+                lp = select_next_node(child[0], left_range, {sigma_range[0], mid-1}, sigma_ranges); //position in the bitvector (v.level+1)
+                if (lp != -1ULL) {
+                    lp = lp - (v.level+1) * m_size + 1; //corresponds with the lp-th 0-bit of v.level
+                    lp = m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp); //position in the bitvector (v.level)
+                }
             }
         }
-        if (!sdsl::empty(right_range) && overlaps({mid, sigma_range[1]}, sigma_ranges)) {
-            rp = select_next_node(child[1], right_range, {mid, sigma_range[1]}, sigma_ranges); //poistion in the bitvector (v.level+1)
-            if (rp != -1ULL) {
-                rp = rp - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //position in the right child
+        if (!sdsl::empty(right_range)) {
+            rstate = check_range({mid, sigma_range[1]}, sigma_ranges);
+            if (rstate == 2) {
+                rp = child[1].offset + right_range[0]; //position in the bitvector (v.level+1)
+                rp = rp - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //corresponds with the rp-th 1-bit of v.level
                 rp = m_tree_select1(m_rank_level[v.level]+rp); //position in the bitvector (v.level)
+            }else if (rstate == 1) {
+                rp = select_next_node(child[1], right_range, {mid, sigma_range[1]}, sigma_ranges); //position in the bitvector (v.level+1)
+                if (rp != -1ULL) {
+                    rp = rp - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //corresponds with the rp-th 1-bit of v.level
+                    rp = m_tree_select1(m_rank_level[v.level]+rp); //position in the bitvector (v.level)
+                }
             }
         }
 
@@ -535,7 +567,7 @@ class wm_int
     }
 
     //Implemented by Adrian Gomez-Brandon
-    value_type range_next_value_node_min(node_type &v, const std::vector<range_type> &ranges, range_type sigma_range) {
+    value_type range_min_value_node(node_type &v, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
         if (is_leaf(v)) return v.sym;
 
@@ -543,13 +575,13 @@ class wm_int
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
         size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
         if (!left_ranges.empty()) {
-            return range_next_value_node_min(child[0], left_ranges, {sigma_range[0], mid-1});
+            return range_min_value_node(child[0], left_ranges, {sigma_range[0], mid-1});
         }else {
-            return range_next_value_node_min(child[1], right_ranges, {mid, sigma_range[1]});
+            return range_min_value_node(child[1], right_ranges, {mid, sigma_range[1]});
         }
     }
 
-    value_type range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, range_type sigma_range) {
+    value_type range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
         if (is_leaf(v)) return v.sym;
 
@@ -559,7 +591,7 @@ class wm_int
         if (!left_ranges.empty() && val < mid) {
             value_type aux =  range_next_value_node(child[0], val, left_ranges, {sigma_range[0], mid-1});
             if (aux) return aux;
-            if (!right_ranges.empty()) range_next_value_node_min(child[1], right_ranges, {mid, sigma_range[1]});
+            if (!right_ranges.empty()) return range_min_value_node(child[1], right_ranges, {mid, sigma_range[1]});
         }else if (!right_ranges.empty()){
             return range_next_value_node(child[1], val, right_ranges, {mid, sigma_range[1]});
         }
@@ -575,6 +607,65 @@ class wm_int
         if (val > sigma_range[1]) return 0;
         return range_next_value_node(v, val, ranges, sigma_range);
     }
+
+    /***
+    * The smallest value placed in any range of ranges
+    */
+    value_type range_min_value(const std::vector<sdsl::range_type> &ranges) {
+        node_type v = root();
+        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        return range_min_value_node(v, ranges, sigma_range);
+    }
+
+
+    bool in_sigma_range(const range_type &range, const std::vector<range_type> &sigma_ranges, size_type i_sr) {
+        while (sigma_ranges[i_sr][1] < range[0] && i_sr < sigma_ranges.size()) {
+            ++i_sr;
+        }
+        return (i_sr < sigma_ranges.size() && sigma_ranges[i_sr][0] <= range[1] && sigma_ranges[i_sr][1] >= range[0]);
+    }
+
+    void range2d_values_node(node_type &v, const sdsl::range_type &range, const std::vector<range_type> &sigma_ranges,
+                             const range_type &sigma_range, size_type &i_sr, std::vector<value_type> &res) {
+
+        if (!in_sigma_range(sigma_range, sigma_ranges, i_sr)) {
+            return;
+        }
+
+        if (is_leaf(v)) {
+            res.push_back(v.sym);
+        }else{
+
+            size_type rnk;
+            range_type left_range, right_range;
+            auto child =  my_expand(v, range,
+                                                  left_range, right_range, rnk);
+            size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+            if(!sdsl::empty(left_range)){
+                range2d_values_node(child[0], left_range, sigma_ranges, {sigma_range[0], mid-1}, i_sr, res);
+            }
+            if(!sdsl::empty(right_range)){
+                range2d_values_node(child[1], right_range, sigma_ranges, {mid, sigma_range[1]}, i_sr, res);
+            }
+        }
+
+    }
+
+
+    //Implemented by Adrian Gomez-Brandon
+    //Pre: always the same range of positions and different ranges of symbols
+    std::vector<value_type> range2d_values(const sdsl::range_type &range,
+                                           const std::vector<sdsl::range_type> &sigma_ranges) {
+
+        std::vector<value_type> result;
+        node_type v = root();
+        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        size_type i_sr = 0; //current sigma range to check
+        range2d_values_node(v, range, sigma_ranges, sigma_range, i_sr, result);
+        return result;
+
+    }
+
 
 
 	value_type range_minimum_query(size_type i, size_type j) const
