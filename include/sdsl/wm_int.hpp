@@ -563,7 +563,9 @@ class wm_int
         range_type range = {p, size()-1};
         range_type sigma_range = {0, (1ULL<<m_max_level)-1};
         if (!overlaps(sigma_range, sigma_ranges)) return 0;
-        return select_next_node(v, range, sigma_range, sigma_ranges);
+        auto i = select_next_node(v, range, sigma_range, sigma_ranges);
+        if (i == -1ULL) return 0;
+        return i;
     }
 
     //Implemented by Adrian Gomez-Brandon
