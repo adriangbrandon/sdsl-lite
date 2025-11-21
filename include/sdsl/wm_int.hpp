@@ -431,7 +431,7 @@ class wm_int
         {
             //assert(1 <= i and i <= rank(size(), c));
             assert(i <= size());
-	    uint64_t mask = 1ULL << (m_max_level-1);
+	        uint64_t mask = 1ULL << (m_max_level-1);
             int_vector<64> m_path_off(max_level+1);
             int_vector<64> m_path_rank_off(max_level+1);
             m_path_off[0] = m_path_rank_off[0] = 0;
@@ -467,6 +467,45 @@ class wm_int
             }
             return std::pair<size_type, size_type>(i-1, r);
         };
+
+    uint64_t select_next_ranges_node(node_type &v, const std::vector<range_type> &ranges, range_type sigma_range, value_type c) {
+        /*if (!overlaps(sigma_range, sigma_ranges)) {
+            return -1ULL;
+        }*/
+
+        if (is_leaf(v)) return v.offset + ranges[0][0];
+
+        std::vector<range_type> left_ranges, right_ranges;
+        auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
+        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        uint64_t p = -1ULL;
+        if (c < mid && !left_ranges.empty()) {
+            p = select_next_ranges_node(child[0], left_ranges, {sigma_range[0], mid-1}, c);
+            if (p != -1ULL) {
+                p = p - (v.level+1) * m_size + 1;  //corresponds with the p-th 0-bit of v.level
+                p = m_tree_select0((v.level*m_size - m_rank_level[v.level])+p); //position in the bitvector (v.level)
+            }
+        }else if (c >= mid && !right_ranges.empty()) {
+            p = select_next_ranges_node(child[1], right_ranges, {mid, sigma_range[1]}, c);
+            if (p != -1ULL) {
+                p = p - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //corresponds with the p-th 1-bit of v.level
+                p = m_tree_select1(m_rank_level[v.level]+p); //position in the bitvector (v.level)
+            }
+        }
+        return p;
+    }
+
+    /***
+    * The position of ranges whose contains the first symbol c
+    */
+    size_type select_next_ranges(const std::vector<range_type> &ranges, value_type c) {
+        node_type v = root();
+        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        auto i = select_next_ranges_node(v, ranges, sigma_range, c);
+        if (i == -1ULL) return 0;
+        return i;
+    }
+
 
 
     //Implemented by Adrian Gomez-Brandon
@@ -566,6 +605,90 @@ class wm_int
         auto i = select_next_node(v, range, sigma_range, sigma_ranges);
         if (i == -1ULL) return 0;
         return i;
+    }
+
+
+    //Implemented by Adrian Gomez-Brandon
+    //Given a node v and its i-th element, return the value of the symbol at position i
+    value_type value_node(node_type &v, size_type i) {
+        value_type res = v.sym;
+        i = v.offset + i; //position in the bitvector
+        for (uint32_t k=v.level; k < m_max_level; ++k) {
+            res <<= 1;
+            size_type rank_ones = m_tree_rank(i) - m_rank_level[k];
+            if (m_tree[i]) { // one at position i => follow right child
+                i = (k+1)*m_size + m_zero_cnt[k] + rank_ones;
+                res |= 1;
+            } else { // zero at position i => follow left child
+                auto rank_zeros = (i - k*m_size) - rank_ones;
+                i = (k+1)*m_size + rank_zeros;
+            }
+        }
+        return res;
+    }
+
+
+    //Implemented by Adrian Gomez-Brandon
+    std::pair<size_type, value_type>  select_next_pos_with_value_node(node_type &v, range_type range, range_type sigma_range,  const std::vector<range_type> &sigma_ranges) {
+
+        if (is_leaf(v)) return {v.offset + range[0], v.sym};
+
+        uint64_t rank_b;
+        range_type left_range, right_range;
+        auto child = my_expand(v, range, left_range, right_range, rank_b);
+        std::pair<size_type, value_type> lp = {-1ULL, 0}, rp =  {-1ULL, 0};
+        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        uint lstate, rstate;
+
+        if (!sdsl::empty(left_range)) {
+            lstate = check_range({sigma_range[0], mid-1}, sigma_ranges);
+            if (lstate == 2) { //contained
+                lp.first = child[0].offset + left_range[0]; //position in the bitvector (v.level+1)
+                //TODO: find value
+                lp.second = value_node(child[0], left_range[0]);
+                lp.first = lp.first - (v.level+1) * m_size + 1;  //corresponds with the lp-th 0-bit of v.level
+                lp.first = m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp.first); //position in the bitvector (v.level)
+
+            }else if (lstate == 1) { //overlaps
+                lp = select_next_pos_with_value_node(child[0], left_range, {sigma_range[0], mid-1}, sigma_ranges); //position in the bitvector (v.level+1)
+                if (lp.first != -1ULL) {
+                    lp.first = lp.first - (v.level+1) * m_size + 1; //corresponds with the lp-th 0-bit of v.level
+                    lp.first = m_tree_select0((v.level*m_size - m_rank_level[v.level])+lp.first); //position in the bitvector (v.level)
+                }
+            }
+        }
+        if (!sdsl::empty(right_range)) {
+            rstate = check_range({mid, sigma_range[1]}, sigma_ranges);
+            if (rstate == 2) { //contained
+                rp.first = child[1].offset + right_range[0]; //position in the bitvector (v.level+1)
+                //TODO: find value
+                rp.second = value_node(child[1], right_range[0]);
+                rp.first = rp.first - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //corresponds with the rp-th 1-bit of v.level
+                rp.first = m_tree_select1(m_rank_level[v.level]+rp.first); //position in the bitvector (v.level)
+            }else if (rstate == 1) { //overlaps
+                rp = select_next_pos_with_value_node(child[1], right_range, {mid, sigma_range[1]}, sigma_ranges); //position in the bitvector (v.level+1)
+                if (rp.first != -1ULL) {
+                    rp.first = rp.first - (v.level+1) * m_size - m_zero_cnt[v.level] +1; //corresponds with the rp-th 1-bit of v.level
+                    rp.first = m_tree_select1(m_rank_level[v.level]+rp.first); //position in the bitvector (v.level)
+                }
+            }
+        }
+        if (lp.first > rp.first) return rp;
+        return lp;
+
+    }
+
+    /***
+     * The next position and value of the range [p, \infty) whose symbol is in any range of sigma_ranges
+     */
+    std::pair<size_type, value_type>  select_next_pos_with_value(uint64_t p, std::vector<sdsl::range_type> &sigma_ranges) {
+        node_type v = root();
+        range_type root_range = {p, size()-1};
+        range_type root_sigma_range = {0, (1ULL<<m_max_level)-1};
+        if (!overlaps(root_sigma_range, sigma_ranges)) return {0, 0};
+        auto pv = next_pos_value_node(v, root_range, root_sigma_range, sigma_ranges);
+        if (pv.first == -1ULL) return {0, 0};
+        return pv;
     }
 
     //Implemented by Adrian Gomez-Brandon
