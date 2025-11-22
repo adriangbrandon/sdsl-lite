@@ -694,7 +694,7 @@ class wm_int
     //Implemented by Adrian Gomez-Brandon
     std::pair<value_type, size_type> range_min_value_node(node_type &v, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
-        if (is_leaf(v)) return {v.sym, v.offset+1};
+        if (is_leaf(v)) return {v.sym, v.offset};
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
@@ -708,7 +708,7 @@ class wm_int
 
     std::pair<value_type, size_type> range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
-        if (is_leaf(v)) return {v.sym, v.offset+1};
+        if (is_leaf(v)) return {v.sym, v.offset};
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
@@ -724,7 +724,7 @@ class wm_int
     }
 
     /***
-     * The smallest value in [val, \infty) placed in any range of ranges
+     * The smallest value in [val, \infty) placed in any range of ranges and rank(i) of that value
      */
     std::pair<value_type, size_type> range_next_value(const value_type &val, const std::vector<sdsl::range_type> &ranges) {
         node_type v = root();
@@ -734,7 +734,7 @@ class wm_int
     }
 
     /***
-    * The smallest value placed in any range of ranges
+    * The smallest value placed in any range of ranges and rank(i) of that value
     */
     std::pair<value_type, size_type> range_min_value(const std::vector<sdsl::range_type> &ranges) {
         node_type v = root();
