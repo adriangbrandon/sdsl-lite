@@ -692,9 +692,9 @@ class wm_int
     }
 
     //Implemented by Adrian Gomez-Brandon
-    value_type range_min_value_node(node_type &v, const std::vector<range_type> &ranges, const range_type &sigma_range) {
+    std::pair<value_type, size_type> range_min_value_node(node_type &v, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
-        if (is_leaf(v)) return v.sym;
+        if (is_leaf(v)) return {v.sym, v.offset+1};
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
@@ -706,37 +706,37 @@ class wm_int
         }
     }
 
-    value_type range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, const range_type &sigma_range) {
+    std::pair<value_type, size_type> range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
-        if (is_leaf(v)) return v.sym;
+        if (is_leaf(v)) return {v.sym, v.offset+1};
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
         size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
         if (!left_ranges.empty() && val < mid) {
-            value_type aux =  range_next_value_node(child[0], val, left_ranges, {sigma_range[0], mid-1});
+            auto aux =  range_next_value_node(child[0], val, left_ranges, {sigma_range[0], mid-1});
             if (aux) return aux;
             if (!right_ranges.empty()) return range_min_value_node(child[1], right_ranges, {mid, sigma_range[1]});
         }else if (!right_ranges.empty()){
             return range_next_value_node(child[1], val, right_ranges, {mid, sigma_range[1]});
         }
-        return 0;
+        return {0,0};
     }
 
     /***
      * The smallest value in [val, \infty) placed in any range of ranges
      */
-    value_type range_next_value(const value_type &val, const std::vector<sdsl::range_type> &ranges) {
+    std::pair<value_type, size_type> range_next_value(const value_type &val, const std::vector<sdsl::range_type> &ranges) {
         node_type v = root();
         range_type sigma_range = {0, (1ULL<<m_max_level)-1};
-        if (val > sigma_range[1]) return 0;
+        if (val > sigma_range[1]) return {0, 0};
         return range_next_value_node(v, val, ranges, sigma_range);
     }
 
     /***
     * The smallest value placed in any range of ranges
     */
-    value_type range_min_value(const std::vector<sdsl::range_type> &ranges) {
+    std::pair<value_type, size_type> range_min_value(const std::vector<sdsl::range_type> &ranges) {
         node_type v = root();
         range_type sigma_range = {0, (1ULL<<m_max_level)-1};
         return range_min_value_node(v, ranges, sigma_range);
