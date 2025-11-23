@@ -715,7 +715,7 @@ class wm_int
         size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
         if (!left_ranges.empty() && val < mid) {
             auto aux =  range_next_value_node(child[0], val, left_ranges, {sigma_range[0], mid-1});
-            if (aux) return aux;
+            if (aux.first) return aux;
             if (!right_ranges.empty()) return range_min_value_node(child[1], right_ranges, {mid, sigma_range[1]});
         }else if (!right_ranges.empty()){
             return range_next_value_node(child[1], val, right_ranges, {mid, sigma_range[1]});
