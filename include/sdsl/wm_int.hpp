@@ -686,7 +686,7 @@ class wm_int
         range_type root_range = {p, size()-1};
         range_type root_sigma_range = {0, (1ULL<<m_max_level)-1};
         if (!overlaps(root_sigma_range, sigma_ranges)) return {0, 0};
-        auto pv = next_pos_value_node(v, root_range, root_sigma_range, sigma_ranges);
+        auto pv = select_next_pos_with_value_node(v, root_range, root_sigma_range, sigma_ranges);
         if (pv.first == -1ULL) return {0, 0};
         return pv;
     }
