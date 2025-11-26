@@ -694,7 +694,7 @@ class wm_int
     //Implemented by Adrian Gomez-Brandon
     std::pair<value_type, size_type> range_min_value_node(node_type &v, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
-        if (is_leaf(v)) return {v.sym, v.offset};
+        if (is_leaf(v)) return {v.sym, ranges[0][0]};
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
@@ -708,7 +708,7 @@ class wm_int
 
     std::pair<value_type, size_type> range_next_value_node(node_type &v, const value_type val, const std::vector<range_type> &ranges, const range_type &sigma_range) {
 
-        if (is_leaf(v)) return {v.sym, v.offset};
+        if (is_leaf(v)) return {v.sym, ranges[0][0]};
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
