@@ -500,7 +500,7 @@ class wm_int
     */
     size_type select_next_ranges(const std::vector<range_type> &ranges, value_type c) {
         node_type v = root();
-        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        range_type sigma_range = {0, (-1ULL >> (64 - m_max_level))};
         auto i = select_next_ranges_node(v, ranges, sigma_range, c);
         if (i == -1ULL) return 0;
         return i;
@@ -600,7 +600,7 @@ class wm_int
      size_type  select_next(uint64_t p, std::vector<sdsl::range_type> &sigma_ranges) {
         node_type v = root();
         range_type range = {p, size()-1};
-        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        range_type sigma_range = {0, (-1ULL >> (64 - m_max_level))};
         if (!overlaps(sigma_range, sigma_ranges)) return 0;
         auto i = select_next_node(v, range, sigma_range, sigma_ranges);
         if (i == -1ULL) return 0;
@@ -684,7 +684,7 @@ class wm_int
     std::pair<size_type, value_type>  select_next_pos_with_value(uint64_t p, std::vector<sdsl::range_type> &sigma_ranges) {
         node_type v = root();
         range_type root_range = {p, size()-1};
-        range_type root_sigma_range = {0, (1ULL<<m_max_level)-1};
+        range_type root_sigma_range = {0, (-1ULL >> (64 - m_max_level))};
         if (!overlaps(root_sigma_range, sigma_ranges)) return {0, 0};
         auto pv = select_next_pos_with_value_node(v, root_range, root_sigma_range, sigma_ranges);
         if (pv.first == -1ULL) return {0, 0};
@@ -728,7 +728,7 @@ class wm_int
      */
     std::pair<value_type, size_type> range_next_value(const value_type &val, const std::vector<sdsl::range_type> &ranges) {
         node_type v = root();
-        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        range_type sigma_range = {0, (-1ULL >> (64 - m_max_level))};
         if (val > sigma_range[1]) return {0, 0};
         return range_next_value_node(v, val, ranges, sigma_range);
     }
@@ -738,7 +738,7 @@ class wm_int
     */
     std::pair<value_type, size_type> range_min_value(const std::vector<sdsl::range_type> &ranges) {
         node_type v = root();
-        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        range_type sigma_range = {0, (-1ULL >> (64 - m_max_level))};
         return range_min_value_node(v, ranges, sigma_range);
     }
 
@@ -784,7 +784,7 @@ class wm_int
 
         std::vector<value_type> result;
         node_type v = root();
-        range_type sigma_range = {0, (1ULL<<m_max_level)-1};
+        range_type sigma_range = {0, (-1ULL >> (64 - m_max_level))};
         size_type i_sr = 0; //current sigma range to check
         range2d_values_node(v, range, sigma_ranges, sigma_range, i_sr, result);
         return result;
