@@ -477,7 +477,7 @@ class wm_int
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
-        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        size_type mid = (sigma_range[0] + sigma_range[1])>>1+1;
         uint64_t p = -1ULL;
         if (c < mid && !left_ranges.empty()) {
             p = select_next_ranges_node(child[0], left_ranges, {sigma_range[0], mid-1}, c);
@@ -548,7 +548,7 @@ class wm_int
         range_type left_range, right_range;
         auto child = my_expand(v, range, left_range, right_range, rank_b);
         uint64_t lp = -1ULL, rp = -1ULL;
-        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        size_type mid = (sigma_range[0] + sigma_range[1])>>1+1;
         uint lstate, rstate;
 
         if (!sdsl::empty(left_range)) {
@@ -637,7 +637,7 @@ class wm_int
         range_type left_range, right_range;
         auto child = my_expand(v, range, left_range, right_range, rank_b);
         std::pair<size_type, value_type> lp = {-1ULL, 0}, rp =  {-1ULL, 0};
-        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        size_type mid = (sigma_range[0] + sigma_range[1])>>1+1;
         uint lstate, rstate;
 
         if (!sdsl::empty(left_range)) {
@@ -698,7 +698,7 @@ class wm_int
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
-        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        size_type mid = (sigma_range[0] + sigma_range[1])>>1 +1;
         if (!left_ranges.empty()) {
             return range_min_value_node(child[0], left_ranges, {sigma_range[0], mid-1});
         }else {
@@ -712,7 +712,7 @@ class wm_int
 
         std::vector<range_type> left_ranges, right_ranges;
         auto child = my_expand_ranges(v, ranges, left_ranges, right_ranges);
-        size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+        size_type mid = (sigma_range[0] + sigma_range[1])>>1 +1;
         if (!left_ranges.empty() && val < mid) {
             auto aux =  range_next_value_node(child[0], val, left_ranges, {sigma_range[0], mid-1});
             if (aux.first) return aux;
@@ -765,7 +765,7 @@ class wm_int
             range_type left_range, right_range;
             auto child =  my_expand(v, range,
                                                   left_range, right_range, rnk);
-            size_type mid = (sigma_range[0] + sigma_range[1]+1)>>1;
+            size_type mid = (sigma_range[0] + sigma_range[1])>>1+1;
             if(!sdsl::empty(left_range)){
                 range2d_values_node(child[0], left_range, sigma_ranges, {sigma_range[0], mid-1}, i_sr, res);
             }
@@ -1741,7 +1741,7 @@ class wm_int
             }else{
 
                 auto child = my_expand(x.node, x.range, child_ranges[0], child_ranges[1], rnk);
-                auto mid   = (x.ilb + x.irb+1)>>1;
+                auto mid   = (x.ilb + x.irb)>>1 + 1;
 
                 if(!sdsl::empty(get<0>(child_ranges)) && mid && vlb < mid) {
                     stack.emplace(nrv_type{get<0>(child), get<0>(child_ranges), x.ilb, mid - 1});
