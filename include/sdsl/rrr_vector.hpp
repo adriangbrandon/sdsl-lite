@@ -856,5 +856,7 @@ class select_support_rrr
         }
     };
 
-}
+}// end namespace sdsl
+#include "rrr_vector_15.hpp" // include specialization
+
 #endif
